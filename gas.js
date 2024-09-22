@@ -1,25 +1,14 @@
-const GOOGLE_SPREADSHEET_ID = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // Google SpreadsheetのID
+const SPREADSHEET_ID = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // Google SpreadsheetのID
 const SLACK_BOT_TOKEN =
   "xoxb-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // SlackのBot User OAuth Access Token
 const SLACK_CHANNEL_ID = "XXXXXXXXXXX"; // SlackのチャンネルID
 
-function doPost(e) {
-  postTopicToSlack(); // お題を再投稿
-  const payload = JSON.parse(e.postData.contents);
-  const action = payload.actions[0];
-  const actionId = action.action_id;
+// POSTリクエストを受ける
+const doPost = (_) => postTopicToSlack(); // お題を再投稿
 
-  actionId === "change_topic" && postTopicToSlack(); // お題を再投稿
-  actionId === "choose_topic" && recordTopicUsage(action.value); // 使用履歴を記録
-  return ContentService.createTextOutput();
-}
-
-// お題を取得してSlackに送信する関数
-function postTopicToSlack() {
-  const ss = SpreadsheetApp.openById(GOOGLE_SPREADSHEET_ID);
-  const sheet = ss.getSheetByName("お題管理シート");
-  const data = sheet.getDataRange().getValues();
-
+// main
+const postTopicToSlack = () => {
+  const data = getSpreadsheetData();
   const twoWeeksAgo = new Date();
   twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
@@ -34,64 +23,58 @@ function postTopicToSlack() {
   const selectedTopic = candidates[randomIndex];
 
   Logger.log(selectedTopic);
+
+  postToSlack(topicToPayloadBlocks(selectedTopic));
   recordTopicUsage(selectedTopic);
+};
 
-  const slackMessage = [
-    {
-      type: "section",
-      text: {
-        type: "plain_text",
-        text: "今日のお題: " + selectedTopic,
-      },
-    },
-    {
-      type: "actions",
-      elements: [
-        {
-          type: "button",
-          text: {
-            type: "plain_text",
-            text: "チェンジ",
-          },
-          action_id: "change_topic",
-        },
-        {
-          type: "button",
-          text: {
-            type: "plain_text",
-            text: "これにする！",
-          },
-          value: selectedTopic,
-          action_id: "choose_topic",
-        },
-      ],
-    },
-  ];
+const recordTopicUsage = (topic) => {
+  const data = getSpreadsheetData();
+  const today = new Date();
+  const record = (rowIndex, date) =>
+    getTopicSpreadSheet().getRange(rowIndex, 2).setValue(date);
+  data.some((item, i) => item[0] === topic && (record(i + 1, today), true));
+};
 
+const getTopicSpreadSheet = () =>
+  SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("お題管理シート");
+
+const getSpreadsheetData = () =>
+  getTopicSpreadSheet().getDataRange().getValues();
+
+const postToSlack = (blocks) => {
+  Logger.log(blocks);
   const slackUrl = "https://slack.com/api/chat.postMessage";
-  const token = SLACK_BOT_TOKEN;
-
   const options = {
     method: "post",
     contentType: "application/json",
-    headers: { Authorization: "Bearer " + token },
-    payload: JSON.stringify({
-      channel: SLACK_CHANNEL_ID,
-      blocks: slackMessage,
-    }),
+    headers: { Authorization: "Bearer " + SLACK_BOT_TOKEN },
+    payload: JSON.stringify({ channel: SLACK_CHANNEL_ID, blocks }),
   };
 
-  const response = UrlFetchApp.fetch(slackUrl, options);
-  Logger.log(response.getContentText());
-}
+  const res = UrlFetchApp.fetch(slackUrl, options);
+  Logger.log(res);
+};
 
-function recordTopicUsage(topic) {
-  const ss = SpreadsheetApp.openById(GOOGLE_SPREADSHEET_ID);
-  const sheet = ss.getSheetByName("お題管理シート");
-  const data = sheet.getDataRange().getValues();
-  const today = new Date();
-
-  data.some(
-    (item, i) => item[0] === topic && sheet.getRange(i + 1, 2).setValue(today)
-  );
-}
+const topicToPayloadBlocks = (topic) => [
+  {
+    type: "section",
+    text: {
+      type: "plain_text",
+      text: `今日のお題: ${topic}`,
+    },
+  },
+  {
+    type: "actions",
+    elements: [
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "別のお題！",
+        },
+        action_id: "change_topic",
+      },
+    ],
+  },
+];
