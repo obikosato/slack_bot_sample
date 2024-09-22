@@ -1,10 +1,25 @@
-const SPREADSHEET_ID = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // Google SpreadsheetのID
-const SLACK_BOT_TOKEN =
-  "xoxb-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // SlackのBot User OAuth Access Token
-const SLACK_CHANNEL_ID = "XXXXXXXXXXX"; // SlackのチャンネルID
+const getProps = (props) => {
+  const scriptProps = PropertiesService.getScriptProperties();
+  return scriptProps.getProperty(props);
+};
 
 // POSTリクエストを受ける
-const doPost = (_) => postTopicToSlack(); // お題を再投稿
+const doPost = (e) => {
+  const slackToken = JSON.stringify(e)
+    .split(",")
+    .find((e) => e.match(/^\\"token/))
+    .split('"')[3]
+    .split("\\")[0];
+
+  const expectedToken = getProps("SLACK_VERIFICATION_TOKEN");
+
+  if (slackToken !== expectedToken) {
+    return ContentService.createTextOutput("Unauthorized").setMimeType(
+      ContentService.MimeType.TEXT
+    );
+  }
+  postTopicToSlack();
+};
 
 // main
 const postTopicToSlack = () => {
@@ -21,7 +36,6 @@ const postTopicToSlack = () => {
 
   const randomIndex = Math.floor(Math.random() * candidates.length);
   const selectedTopic = candidates[randomIndex];
-
   Logger.log(selectedTopic);
 
   postToSlack(topicToPayloadBlocks(selectedTopic));
@@ -37,19 +51,20 @@ const recordTopicUsage = (topic) => {
 };
 
 const getTopicSpreadSheet = () =>
-  SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName("お題管理シート");
+  SpreadsheetApp.openById(getProps("SPREADSHEET_ID")).getSheetByName(
+    "お題管理シート"
+  );
 
 const getSpreadsheetData = () =>
   getTopicSpreadSheet().getDataRange().getValues();
 
 const postToSlack = (blocks) => {
-  Logger.log(blocks);
   const slackUrl = "https://slack.com/api/chat.postMessage";
   const options = {
     method: "post",
     contentType: "application/json",
-    headers: { Authorization: "Bearer " + SLACK_BOT_TOKEN },
-    payload: JSON.stringify({ channel: SLACK_CHANNEL_ID, blocks }),
+    headers: { Authorization: "Bearer " + getProps("SLACK_BOT_TOKEN") },
+    payload: JSON.stringify({ channel: getProps("SLACK_CHANNEL_ID"), blocks }),
   };
 
   const res = UrlFetchApp.fetch(slackUrl, options);
