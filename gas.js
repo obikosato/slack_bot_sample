@@ -35,6 +35,12 @@ const doPost = (e) => {
     case "choose_topic":
       recordTopicUsage(payload.actions[0].value);
       break;
+    case "good":
+      addGoodToTopic(payload.actions[0].value);
+      break;
+    case "bad":
+      addBadToTopic(payload.actions[0].value);
+      break;
   }
 
   // 処理が成功した場合はOKを返す
@@ -53,18 +59,33 @@ const postTopicToSlack = () => {
 const recordTopicUsage = (topic) => {
   const data = getSpreadsheetData();
   const today = new Date();
-  data.some((item, i) => item[0] === topic && (record(i + 1, today), true));
+  data.some((item, i) => item[0] === topic && (record(i + 1, 2, today), true));
 };
 
 // お題の使用履歴をクリアする関数
 const clearTopicUsage = () => {
   const data = getSpreadsheetData();
-  data.forEach((_, i) => record(i + 1, ""));
+  data.forEach((_, i) => record(i + 1, 2, ""));
 };
 
-// 指定された行に日付を記録する関数
-const record = (rowIndex, date) => {
-  getTopicSpreadSheet().getRange(rowIndex, 2).setValue(date);
+// スプレッドシートに値を記録する関数
+const record = (row, column, value) =>
+  getTopicSpreadSheet().getRange(row, column).setValue(value);
+
+// お題の評価を記録する関数
+const addGoodToTopic = (topic) => {
+  const data = getSpreadsheetData();
+  const row = data.findIndex((item) => item[0] === topic);
+  const good = (data[row][2] || 0) + 1;
+  record(row + 1, 3, good);
+};
+
+// お題の評価を記録する関数
+const addBadToTopic = (topic) => {
+  const data = getSpreadsheetData();
+  const row = data.findIndex((item) => item[0] === topic);
+  const bad = (data[row][3] || 0) + 1;
+  record(row + 1, 4, bad);
 };
 
 // 候補のお題を取得する関数
@@ -88,16 +109,14 @@ const getCandidateTopic = () => {
 };
 
 // スプレッドシートを取得する関数
-const getTopicSpreadSheet = () => {
-  return SpreadsheetApp.openById(getProps("SPREADSHEET_ID")).getSheetByName(
+const getTopicSpreadSheet = () =>
+  SpreadsheetApp.openById(getProps("SPREADSHEET_ID")).getSheetByName(
     "お題管理シート"
   );
-};
 
 // スプレッドシートのデータを取得する関数
-const getSpreadsheetData = () => {
-  return getTopicSpreadSheet().getDataRange().getValues();
-};
+const getSpreadsheetData = () =>
+  getTopicSpreadSheet().getDataRange().getValues();
 
 // Slackにメッセージを投稿する関数
 const postToSlack = (blocks) => {
@@ -141,6 +160,24 @@ const topicToPayloadBlocks = (topic) => [
         },
         value: topic,
         action_id: "choose_topic",
+      },
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: ":+1:",
+        },
+        value: topic,
+        action_id: "good",
+      },
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: ":-1:",
+        },
+        value: topic,
+        action_id: "bad",
       },
     ],
   },
