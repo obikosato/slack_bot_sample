@@ -2,64 +2,10 @@
 const getProps = (props) =>
   PropertiesService.getScriptProperties().getProperty(props);
 
-// POSTリクエストを処理する関数
-const doPost = (e) => {
-  // POSTデータを取得し、デコードしてJSONにパース
-  const data = e.postData.contents;
-  const payload = JSON.parse(decodeURIComponent(data.split("payload=")[1]));
-
-  // Slackトークンを取得し、検証用トークンと比較
-  const slackToken = payload.token;
-  const expectedToken = getProps("SLACK_VERIFICATION_TOKEN");
-
-  // トークンが一致しない場合はUnauthorizedを返す
-  if (slackToken !== expectedToken) {
-    return ContentService.createTextOutput("Unauthorized").setMimeType(
-      ContentService.MimeType.TEXT
-    );
-  }
-
-  // アクションIDを取得し、存在しない場合はエラーメッセージを返す
-  const actionId = payload.actions[0].action_id;
-  if (!actionId) {
-    return ContentService.createTextOutput("No action_id").setMimeType(
-      ContentService.MimeType.TEXT
-    );
-  }
-
-  // アクションIDに基づいて処理を分岐
-  switch (actionId) {
-    case "change_topic":
-      postTopicToSlack();
-      break;
-    case "choose_topic":
-      recordTopicUsage(payload.actions[0].value);
-      break;
-    case "good":
-      addGoodToTopic(payload.actions[0].value);
-      break;
-    case "bad":
-      addBadToTopic(payload.actions[0].value);
-      break;
-  }
-
-  // 処理が成功した場合はOKを返す
-  return ContentService.createTextOutput("OK").setMimeType(
-    ContentService.MimeType.TEXT
-  );
-};
-
 // Slackにお題を投稿する関数
 const postTopicToSlack = () => {
   const selectedTopic = getCandidateTopic();
   postToSlack(topicToPayloadBlocks(selectedTopic));
-};
-
-// お題の使用履歴を記録する関数
-const recordTopicUsage = (topic) => {
-  const data = getSpreadsheetData();
-  const today = new Date();
-  data.some((item, i) => item[0] === topic && (record(i + 1, 2, today), true));
 };
 
 // お題の使用履歴をクリアする関数
@@ -71,22 +17,6 @@ const clearTopicUsage = () => {
 // スプレッドシートに値を記録する関数
 const record = (row, column, value) =>
   getTopicSpreadSheet().getRange(row, column).setValue(value);
-
-// お題の評価を記録する関数
-const addGoodToTopic = (topic) => {
-  const data = getSpreadsheetData();
-  const row = data.findIndex((item) => item[0] === topic);
-  const good = (data[row][2] || 0) + 1;
-  record(row + 1, 3, good);
-};
-
-// お題の評価を記録する関数
-const addBadToTopic = (topic) => {
-  const data = getSpreadsheetData();
-  const row = data.findIndex((item) => item[0] === topic);
-  const bad = (data[row][3] || 0) + 1;
-  record(row + 1, 4, bad);
-};
 
 // 候補のお題を取得する関数
 const getCandidateTopic = () => {
@@ -140,45 +70,5 @@ const topicToPayloadBlocks = (topic) => [
       type: "plain_text",
       text: `今日のお題: ${topic || "お題がありません!!"}`,
     },
-  },
-  {
-    type: "actions",
-    elements: [
-      {
-        type: "button",
-        text: {
-          type: "plain_text",
-          text: "別のお題！",
-        },
-        action_id: "change_topic",
-      },
-      {
-        type: "button",
-        text: {
-          type: "plain_text",
-          text: "これにする！",
-        },
-        value: topic,
-        action_id: "choose_topic",
-      },
-      {
-        type: "button",
-        text: {
-          type: "plain_text",
-          text: ":+1:",
-        },
-        value: topic,
-        action_id: "good",
-      },
-      {
-        type: "button",
-        text: {
-          type: "plain_text",
-          text: ":-1:",
-        },
-        value: topic,
-        action_id: "bad",
-      },
-    ],
   },
 ];
