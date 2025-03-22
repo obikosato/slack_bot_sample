@@ -8,31 +8,10 @@ const postTopicToSlack = () => {
   postToSlack(topicToPayloadBlocks(selectedTopic));
 };
 
-// お題の使用履歴をクリアする関数
-const clearTopicUsage = () => {
-  const data = getSpreadsheetData();
-  data.forEach((_, i) => record(i + 1, 2, ""));
-};
-
-// スプレッドシートに値を記録する関数
-const record = (row, column, value) =>
-  getTopicSpreadSheet().getRange(row, column).setValue(value);
-
 // 候補のお題を取得する関数
 const getCandidateTopic = () => {
   const data = getSpreadsheetData();
-  const twoWeeksAgo = new Date();
-  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-
-  const candidates = data.slice(1).reduce((acc, item) => {
-    const lastUsedDate = new Date(item[1]);
-    return lastUsedDate < twoWeeksAgo || !item[1] ? [...acc, item[0]] : acc;
-  }, []);
-
-  if (candidates.length === 0) {
-    clearTopicUsage();
-    return getCandidateTopic();
-  }
+  const candidates = data.map((row) => row[0]).filter((topic) => topic);
 
   const randomIndex = Math.floor(Math.random() * candidates.length);
   return candidates[randomIndex];
